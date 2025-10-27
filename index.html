@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarkItDown - 文件轉 Markdown 工具</title>
+    <link rel="stylesheet" href="./website/style.css">
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔄 MarkItDown</h1>
+            <p class="subtitle">將各種文件格式轉換為 Markdown</p>
+        </header>
+
+        <main>
+            <section class="upload-section">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <h3>拖放文件到這裡</h3>
+                        <p>或</p>
+                        <label for="fileInput" class="file-button">選擇文件</label>
+                        <input type="file" id="fileInput" accept=".pdf,.docx,.pptx,.xlsx,.xls,.jpg,.jpeg,.png,.html,.csv,.json,.xml,.txt,.zip,.epub" multiple hidden>
+                        <p class="supported-formats">支援格式: PDF, Word, PowerPoint, Excel, 圖片, HTML, CSV, JSON, XML, ZIP, EPUB 等</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="status-section" id="statusSection">
+                <div class="status-message" id="statusMessage">
+                    <div class="loading-spinner"></div>
+                    <span id="statusText">初始化 Python 環境中...</span>
+                </div>
+            </section>
+
+            <section class="files-section" id="filesSection" style="display: none;">
+                <h2>已選擇的文件</h2>
+                <div id="filesList" class="files-list"></div>
+                <button id="convertBtn" class="convert-button">
+                    <svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                    </svg>
+                    開始轉換
+                </button>
+            </section>
+
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <h2>轉換結果</h2>
+                <div id="resultsList" class="results-list"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>基於 <a href="https://github.com/microsoft/markitdown" target="_blank">Microsoft MarkItDown</a> 項目</p>
+            <p>在瀏覽器中使用 <a href="https://pyodide.org" target="_blank">Pyodide</a> 運行</p>
+        </footer>
+    </div>
+
+    <script src="./website/app.js"></script>
+</body>
+</html>
+
