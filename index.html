@@ -10,8 +10,14 @@
 <body>
     <div class="container">
         <header>
-            <h1>🔄 MarkItDown</h1>
-            <p class="subtitle">將各種文件格式轉換為 Markdown</p>
+            <div class="header-top">
+                <h1>🔄 MarkItDown</h1>
+                <div class="language-toggle" role="group" aria-label="Language toggle">
+                    <button type="button" class="lang-button active" data-lang="zh">中文</button>
+                    <button type="button" class="lang-button" data-lang="en">English</button>
+                </div>
+            </div>
+            <p class="subtitle" data-i18n="subtitle">將各種文件格式轉換為 Markdown</p>
         </header>
 
         <main>
@@ -23,11 +29,11 @@
                             <polyline points="17 8 12 3 7 8"></polyline>
                             <line x1="12" y1="3" x2="12" y2="15"></line>
                         </svg>
-                        <h3>拖放文件到這裡</h3>
-                        <p>或</p>
-                        <label for="fileInput" class="file-button">選擇文件</label>
+                        <h3 data-i18n="dropTitle">拖放文件到這裡</h3>
+                        <p data-i18n="dropOr">或</p>
+                        <label for="fileInput" class="file-button" data-i18n="chooseFile">選擇文件</label>
                         <input type="file" id="fileInput" accept=".pdf,.docx,.pptx,.xlsx,.xls,.jpg,.jpeg,.png,.html,.csv,.json,.xml,.txt,.zip,.epub" multiple hidden>
-                        <p class="supported-formats">支援格式: PDF, Word, PowerPoint, Excel, 圖片, HTML, CSV, JSON, XML, ZIP, EPUB 等</p>
+                        <p class="supported-formats" data-i18n="supportedFormats">支援格式: PDF, Word, PowerPoint, Excel, 圖片, HTML, CSV, JSON, XML, ZIP, EPUB 等</p>
                     </div>
                 </div>
             </section>
@@ -35,30 +41,45 @@
             <section class="status-section" id="statusSection">
                 <div class="status-message" id="statusMessage">
                     <div class="loading-spinner"></div>
-                    <span id="statusText">初始化 Python 環境中...</span>
+                    <span id="statusText" data-i18n="status.initializing">初始化 Python 環境中...</span>
+                </div>
+            </section>
+
+            <section class="info-section" id="infoSection">
+                <div class="info-icon">ℹ️</div>
+                <div class="info-content">
+                    <h3 data-i18n="limitationsTitle">⚠️ Microsoft MarkItDown 靜態版限制</h3>
+                    <p data-i18n="limitationsText1">此瀏覽器版僅支援純文字與部分簡單格式。PDF、Office、圖片、音訊等進階格式需要於完整的 Microsoft MarkItDown Python/CLI 環境中執行。</p>
+                    <p data-i18n="limitationsText2">若需完整轉換能力，請在本機安裝套件或使用命令列：markitdown your-file.pdf -o output.md</p>
+                    <div class="ai-warning" data-i18n="limitationsReasonIntro">以下限制說明由 AI 生成，涵蓋瀏覽器版無法支援進階格式的原因：</div>
+                    <ul class="limitations-list">
+                        <li data-i18n="limitationsReason1">缺乏原生依賴支援：MarkItDown 的 PDF、Office、圖片、音訊轉換需要多個 C/C++ 套件，而 Pyodide 只能載入純 Python 或 WebAssembly 套件。</li>
+                        <li data-i18n="limitationsReason2">瀏覽器沙箱限制：靜態頁面無法呼叫系統工具或存取作業系統資源，許多高階功能因此受限。</li>
+                        <li data-i18n="limitationsReason3">資源與效能考量：即使轉成 WebAssembly，載入體積與初始化時間也過大，且仍有功能無法完整運作。</li>
+                    </ul>
                 </div>
             </section>
 
             <section class="files-section" id="filesSection" style="display: none;">
-                <h2>已選擇的文件</h2>
+                <h2 data-i18n="filesSelectedTitle">已選擇的文件</h2>
                 <div id="filesList" class="files-list"></div>
                 <button id="convertBtn" class="convert-button">
                     <svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                     </svg>
-                    開始轉換
+                    <span data-i18n="convertButton">開始轉換</span>
                 </button>
             </section>
 
             <section class="results-section" id="resultsSection" style="display: none;">
-                <h2>轉換結果</h2>
+                <h2 data-i18n="resultsTitle">轉換結果</h2>
                 <div id="resultsList" class="results-list"></div>
             </section>
         </main>
 
         <footer>
-            <p>基於 <a href="https://github.com/microsoft/markitdown" target="_blank">Microsoft MarkItDown</a> 項目</p>
-            <p>在瀏覽器中使用 <a href="https://pyodide.org" target="_blank">Pyodide</a> 運行</p>
+            <p data-i18n="footerLine1">基於 <a href="https://github.com/microsoft/markitdown" target="_blank">Microsoft MarkItDown</a> 項目</p>
+            <p data-i18n="footerLine2">在瀏覽器中使用 <a href="https://pyodide.org" target="_blank">Pyodide</a> 運行</p>
         </footer>
     </div>
 
