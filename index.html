@@ -60,6 +60,127 @@
                 </div>
             </section>
 
+            <section class="remote-section" id="mcpSection">
+                <div class="remote-header">
+                    <h3 data-i18n="remote.title">連線本機 MarkItDown MCP 伺服器</h3>
+                    <p data-i18n="remote.description">啟動 <code>markitdown-mcp --http --host 127.0.0.1 --port 3001</code> 後，可透過本節設定以 AJAX 呼叫完整轉換能力。</p>
+                    <p class="remote-hint" data-i18n="remote.proxyHint">⚠️ 瀏覽器請求需與 MCP 伺服器同源，或透過本機代理轉送至 <code>/mcp/</code>，才能避免預檢請求 (OPTIONS) 被 405 擋下。</p>
+                </div>
+                <div class="remote-control">
+                    <label class="remote-toggle">
+                        <input type="checkbox" id="useMcpToggle">
+                        <span data-i18n="remote.toggleLabel">使用本機 MCP 伺服器進行轉換</span>
+                    </label>
+                </div>
+                <div class="remote-settings" id="mcpSettings">
+                    <label for="mcpServerUrl" data-i18n="remote.serverLabel">伺服器位址</label>
+                    <div class="remote-input-row">
+                        <input type="text" id="mcpServerUrl" value="http://127.0.0.1:3001" autocomplete="off">
+                        <button type="button" id="testMcpBtn" class="secondary-button" data-i18n="remote.testButton">測試連線</button>
+                    </div>
+                    <div class="remote-proxy-example">
+                        <details>
+                            <summary data-i18n="remote.proxySummary">如何設定簡易代理？</summary>
+                            <div class="proxy-example">
+                                <details>
+                                    <summary>Node.js + Express + http-proxy-middleware</summary>
+                                    <pre><code>npm install express http-proxy-middleware
+node server.js</code></pre>
+                                    <pre><code>// server.js
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const path = require('path');
+
+const app = express();
+const root = path.join(__dirname, 'website');
+
+app.use(express.static(root));
+
+app.options('/mcp', (req, res) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Accept'
+  });
+  res.sendStatus(204);
+});
+
+app.use(
+  '/mcp',
+  createProxyMiddleware({
+    target: 'http://127.0.0.1:3001',
+    changeOrigin: true,
+    pathRewrite: { '^/mcp': '/mcp/' }
+  })
+);
+
+app.listen(8080, () => {
+  console.log('http://127.0.0.1:8080');
+});</code></pre>
+                                </details>
+                                <details>
+                                    <summary>Python + FastAPI + Uvicorn</summary>
+                                    <pre><code>pip install fastapi uvicorn httpx</code></pre>
+                                    <pre><code># proxy.py
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+import httpx
+
+app = FastAPI()
+app.mount("/", StaticFiles(directory="website", html=True), name="static")
+
+TARGET = "http://127.0.0.1:3001/mcp/"
+ALLOWED_ORIGIN = "*"
+
+@app.options("/mcp/", include_in_schema=False)
+async def options_mcp():
+    headers = {
+        "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+    }
+    return Response(status_code=204, headers=headers)
+
+@app.post("/mcp/", include_in_schema=False)
+async def proxy_mcp(request: Request):
+    headers = {
+        "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,Accept",
+        "Vary": "Origin",
+    }
+    try:
+        payload = await request.body()
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                TARGET,
+                content=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                timeout=15.0,
+            )
+    except httpx.RequestError as exc:
+        return JSONResponse(
+            {"error": f"Proxy connection failed: {exc}"},
+            status_code=502,
+            headers=headers,
+        )
+
+    proxied_headers = {key: value for key, value in resp.headers.items() if key.lower().startswith("content-")}
+    proxied_headers.update(headers)
+
+    if resp.headers.get("Content-Type", "").startswith("application/json"):
+        return JSONResponse(resp.json(), status_code=resp.status_code, headers=proxied_headers)
+    return PlainTextResponse(resp.text, status_code=resp.status_code, headers=proxied_headers)</code></pre>
+                                    <pre><code>uvicorn proxy:app --host 127.0.0.1 --port 8080 --reload</code></pre>
+                                </details>
+                            </div>
+                        </details>
+                    </div>
+                    <div class="remote-status" id="mcpStatus" data-i18n="remote.statusIdle">尚未測試連線</div>
+                </div>
+            </section>
+
             <section class="files-section" id="filesSection" style="display: none;">
                 <h2 data-i18n="filesSelectedTitle">已選擇的文件</h2>
                 <div id="filesList" class="files-list"></div>

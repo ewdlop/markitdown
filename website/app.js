@@ -34,8 +34,30 @@ const translations = {
             copy: '📋 複製',
             download: '💾 下載'
         },
+        remote: {
+            title: '連線本機 MarkItDown MCP 伺服器',
+            description: '啟動 <code>markitdown-mcp --http --host 127.0.0.1 --port 3001</code> 後，可透過本節設定以 AJAX 呼叫完整轉換能力。',
+            proxyHint: '⚠️ 瀏覽器請求需與 MCP 伺服器同源，或透過本機代理轉送至 <code>/mcp/</code>，才能避免預檢請求 (OPTIONS) 被 405 擋下。',
+            proxySummary: '如何設定簡易代理？',
+            proxyOptionExpress: 'Node.js + Express + http-proxy-middleware',
+            proxyOptionFastapi: 'Python + FastAPI + Uvicorn',
+            toggleLabel: '使用本機 MCP 伺服器進行轉換',
+            serverLabel: '伺服器位址',
+            testButton: '測試連線',
+            statusDisabled: '尚未啟用 MCP 伺服器',
+            statusIdle: '尚未測試連線',
+            statusConnecting: '正在測試 MCP 連線...',
+            statusSuccess: '已成功連線至 MCP 伺服器',
+            statusError: 'MCP 連線失敗：{message}'
+        },
         errors: {
-            errorLabel: '錯誤: '
+            errorLabel: '錯誤: ',
+            unknown: '未知錯誤',
+            timeout: '連線逾時',
+            mcpUnavailable: '無法連線到 MCP 伺服器：{message}',
+            mcpBadResponse: 'MCP 伺服器回傳未知格式，請檢查伺服器版本。',
+            mcpConversionFailed: 'MCP 轉換失敗：{message}',
+            mcpDisabled: '此格式需要啟用 MCP 伺服器後才能轉換。'
         },
         fallbackMessage:
             `⚠️ 此文件格式 (.{ext}) 需要完整的 MarkItDown Python 環境才能轉換。\n\n` +
@@ -89,8 +111,30 @@ const translations = {
             copy: '📋 Copy',
             download: '💾 Download'
         },
+        remote: {
+            title: 'Connect to the local MarkItDown MCP server',
+            description: 'After running <code>markitdown-mcp --http --host 127.0.0.1 --port 3001</code>, configure AJAX access below to unlock full conversion.',
+            proxyHint: '⚠️ To avoid 405 responses on the preflight (OPTIONS) request, serve the UI from the same origin as the MCP server or proxy <code>/mcp/</code> locally.',
+            proxySummary: 'How to configure a simple proxy?',
+            proxyOptionExpress: 'Node.js + Express + http-proxy-middleware',
+            proxyOptionFastapi: 'Python + FastAPI + Uvicorn',
+            toggleLabel: 'Use the local MCP server for conversion',
+            serverLabel: 'Server URL',
+            testButton: 'Test connection',
+            statusDisabled: 'MCP server disabled',
+            statusIdle: 'Connection not tested yet',
+            statusConnecting: 'Testing MCP connection...',
+            statusSuccess: 'Connected to the MCP server successfully',
+            statusError: 'MCP connection failed: {message}'
+        },
         errors: {
-            errorLabel: 'Error: '
+            errorLabel: 'Error: ',
+            unknown: 'Unknown error',
+            timeout: 'Request timed out',
+            mcpUnavailable: 'Unable to reach the MCP server: {message}',
+            mcpBadResponse: 'Unexpected response returned by the MCP server. Please verify the server version.',
+            mcpConversionFailed: 'MCP conversion failed: {message}',
+            mcpDisabled: 'This format requires the MCP server to be enabled.'
         },
         fallbackMessage:
             `⚠️ This file format (.{ext}) requires the full MarkItDown Python environment to convert.\n\n` +
@@ -113,12 +157,47 @@ const translations = {
 
 const LANGUAGE_STORAGE_KEY = 'markitdown-lang';
 const TEXT_EXTENSIONS = ['txt', 'md', 'json', 'xml', 'csv', 'html'];
+const DEFAULT_MCP_URL = 'http://127.0.0.1:3001';
+const MCP_STORAGE_KEY = 'markitdown-mcp-config';
+const MCP_REQUEST_TIMEOUT_MS = 15000;
+const MCP_TEST_DATA_URI = 'data:text/plain;base64,SGVsbG8sIE1hcmtJdERvd24h';
+const MIME_TYPES = {
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ppt: 'application/vnd.ms-powerpoint',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    csv: 'text/csv',
+    json: 'application/json',
+    xml: 'application/xml',
+    html: 'text/html',
+    htm: 'text/html',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    m4a: 'audio/m4a',
+    zip: 'application/zip',
+    epub: 'application/epub+zip'
+};
 
 let currentLanguage = 'zh';
 let pyodide = null;
 let selectedFiles = [];
 let isConverting = false;
 let lastStatus = { key: 'status.initializing', type: 'loading', params: {} };
+let mcpConfig = { enabled: false, baseUrl: DEFAULT_MCP_URL };
+let lastMcpStatus = 'disabled';
 
 // DOM elements
 const dropZone = document.getElementById('dropZone');
@@ -131,6 +210,12 @@ const convertBtn = document.getElementById('convertBtn');
 const resultsSection = document.getElementById('resultsSection');
 const resultsList = document.getElementById('resultsList');
 const langButtons = document.querySelectorAll('.lang-button');
+const mcpSection = document.getElementById('mcpSection');
+const useMcpToggle = document.getElementById('useMcpToggle');
+const mcpSettings = document.getElementById('mcpSettings');
+const mcpServerUrlInput = document.getElementById('mcpServerUrl');
+const testMcpBtn = document.getElementById('testMcpBtn');
+const mcpStatus = document.getElementById('mcpStatus');
 
 function translate(lang, key, params = {}) {
     const segments = key.split('.');
@@ -191,6 +276,142 @@ function refreshStatus() {
     }
 }
 
+function normalizeMcpUrl(url) {
+    if (!url) {
+        return '';
+    }
+    let trimmed = url.trim();
+    if (!trimmed) {
+        return '';
+    }
+    if (!/^https?:\/\//i.test(trimmed)) {
+        trimmed = `http://${trimmed}`;
+    }
+    return trimmed.replace(/\/+$/, '');
+}
+
+function loadMcpConfig() {
+    try {
+        const stored = localStorage.getItem(MCP_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === 'object') {
+                mcpConfig = {
+                    enabled: !!parsed.enabled,
+                    baseUrl: normalizeMcpUrl(parsed.baseUrl) || DEFAULT_MCP_URL
+                };
+            }
+        }
+    } catch (error) {
+        console.warn('Unable to load MCP configuration', error);
+    }
+}
+
+function saveMcpConfig() {
+    try {
+        localStorage.setItem(
+            MCP_STORAGE_KEY,
+            JSON.stringify({
+                enabled: !!mcpConfig.enabled,
+                baseUrl: mcpConfig.baseUrl
+            })
+        );
+    } catch (error) {
+        console.warn('Unable to persist MCP configuration', error);
+    }
+}
+
+function isMcpEnabled() {
+    return !!mcpConfig.enabled;
+}
+
+function getMcpBaseUrl() {
+    return normalizeMcpUrl(mcpConfig.baseUrl) || DEFAULT_MCP_URL;
+}
+
+function updateMcpStatus(state = 'idle', messageKey, params = {}) {
+    lastMcpStatus = state;
+    if (!mcpStatus) {
+        return;
+    }
+
+    mcpStatus.dataset.state = state;
+    mcpStatus.classList.remove('success', 'error');
+
+    let key = messageKey;
+    switch (state) {
+        case 'connecting':
+            key = key || 'remote.statusConnecting';
+            break;
+        case 'success':
+            key = key || 'remote.statusSuccess';
+            mcpStatus.classList.add('success');
+            break;
+        case 'error':
+            key = key || 'remote.statusError';
+            mcpStatus.classList.add('error');
+            break;
+        case 'disabled':
+            key = key || 'remote.statusDisabled';
+            break;
+        default:
+            key = key || 'remote.statusIdle';
+            break;
+    }
+
+    mcpStatus.textContent = t(key, params);
+}
+
+function refreshMcpStatusText() {
+    if (!mcpStatus) {
+        return;
+    }
+    const state = mcpStatus.dataset.state || (isMcpEnabled() ? 'idle' : 'disabled');
+    updateMcpStatus(state);
+}
+
+function applyMcpConfigToUi() {
+    if (useMcpToggle) {
+        useMcpToggle.checked = isMcpEnabled();
+    }
+
+    const baseUrl = getMcpBaseUrl();
+    if (mcpServerUrlInput) {
+        mcpServerUrlInput.value = baseUrl;
+        mcpServerUrlInput.disabled = !isMcpEnabled();
+    }
+
+    if (testMcpBtn) {
+        testMcpBtn.disabled = !isMcpEnabled();
+    }
+
+    if (mcpSettings) {
+        mcpSettings.classList.toggle('disabled', !isMcpEnabled());
+    }
+
+    updateMcpStatus(isMcpEnabled() ? lastMcpStatus || 'idle' : 'disabled');
+}
+
+function setMcpEnabled(enabled) {
+    mcpConfig.enabled = !!enabled;
+    if (!mcpConfig.enabled) {
+        lastMcpStatus = 'disabled';
+    } else if (lastMcpStatus === 'disabled') {
+        lastMcpStatus = 'idle';
+    }
+    applyMcpConfigToUi();
+    saveMcpConfig();
+}
+
+function setMcpBaseUrl(url) {
+    const normalized = normalizeMcpUrl(url) || DEFAULT_MCP_URL;
+    mcpConfig.baseUrl = normalized;
+    if (mcpServerUrlInput) {
+        mcpServerUrlInput.value = normalized;
+    }
+    saveMcpConfig();
+}
+
 function setLanguage(lang, options = {}) {
     if (!translations[lang]) {
         return;
@@ -214,6 +435,7 @@ function setLanguage(lang, options = {}) {
     setActiveLanguageButton();
     applyTranslations();
     refreshStatus();
+    refreshMcpStatusText();
 }
 
 function initLanguage() {
@@ -395,10 +617,267 @@ async function convertFiles() {
     convertBtn.disabled = false;
 }
 
+function safeErrorMessage(error) {
+    if (!error) {
+        return t('errors.unknown');
+    }
+
+    if (typeof error === 'object' && error !== null && error.name === 'AbortError') {
+        return t('errors.timeout');
+    }
+
+    if (typeof error === 'string') {
+        return error.trim() || t('errors.unknown');
+    }
+
+    if (error instanceof Error) {
+        const msg = error.message || error.toString();
+        return msg ? msg.trim() : t('errors.unknown');
+    }
+
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const msg = error.message;
+        return typeof msg === 'string' && msg.trim() ? msg.trim() : t('errors.unknown');
+    }
+
+    const fallback = String(error);
+    return fallback.trim() || t('errors.unknown');
+}
+
+async function fetchWithTimeout(url, options = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), MCP_REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        return response;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function generateJsonRpcId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return `call-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+}
+
+async function executeMcpTool(uri) {
+    const jsonRpcRequest = {
+        jsonrpc: '2.0',
+        id: generateJsonRpcId(),
+        method: 'tools/call',
+        params: {
+            name: 'convert_to_markdown',
+            arguments: {
+                uri
+            }
+        }
+    };
+
+    let response;
+    try {
+        response = await fetchWithTimeout(`${getMcpBaseUrl()}/mcp/`, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                Accept: 'application/json, text/event-stream',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(jsonRpcRequest)
+        });
+    } catch (error) {
+        throw new Error(t('errors.mcpUnavailable', { message: safeErrorMessage(error) }));
+    }
+
+    if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        let message = `${response.status} ${response.statusText}`;
+        if (text) {
+            message += ` - ${text}`;
+        }
+        throw new Error(message);
+    }
+
+    try {
+        return await response.json();
+    } catch (error) {
+        throw new Error(t('errors.mcpBadResponse'));
+    }
+}
+
+function extractMarkdownFromMcpPayload(payload) {
+    if (payload == null) {
+        return null;
+    }
+
+    if (payload.error) {
+        const message = typeof payload.error.message === 'string' ? payload.error.message : t('errors.mcpConversionFailed', { message: t('errors.unknown') });
+        throw new Error(message);
+    }
+
+    if (payload.result && Array.isArray(payload.result.content)) {
+        const textParts = payload.result.content
+            .filter((item) => item && item.type === 'text' && typeof item.text === 'string')
+            .map((item) => item.text);
+        if (textParts.length > 0) {
+            return textParts.join('\n');
+        }
+    }
+
+    if (typeof payload === 'string') {
+        return payload;
+    }
+
+    if (payload.result) {
+        if (typeof payload.result === 'string') {
+            return payload.result;
+        }
+        if (payload.result.markdown && typeof payload.result.markdown === 'string') {
+            return payload.result.markdown;
+        }
+        if (payload.result.text && typeof payload.result.text === 'string') {
+            return payload.result.text;
+        }
+    }
+
+    if (payload.data) {
+        if (typeof payload.data === 'string') {
+            return payload.data;
+        }
+        if (payload.data.markdown && typeof payload.data.markdown === 'string') {
+            return payload.data.markdown;
+        }
+    }
+
+    return null;
+}
+
+function uint8ArrayToBase64(uint8Array) {
+    let binary = '';
+    const { length } = uint8Array;
+    for (let i = 0; i < length; i += 1) {
+        binary += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binary);
+}
+
+function getFileMimeType(file, ext) {
+    if (file && file.type) {
+        return file.type;
+    }
+    if (!ext) {
+        return 'application/octet-stream';
+    }
+    return MIME_TYPES[ext.toLowerCase()] || 'application/octet-stream';
+}
+
+function buildDataUri(file, uint8Array, ext) {
+    const mimeType = getFileMimeType(file, ext);
+    const base64 = uint8ArrayToBase64(uint8Array);
+    return `data:${mimeType};base64,${base64}`;
+}
+
+async function convertFileWithMcp(file, uint8Array, ext) {
+    updateMcpStatus('connecting');
+    const dataUri = buildDataUri(file, uint8Array, ext);
+    const payload = await executeMcpTool(dataUri);
+    const markdown = extractMarkdownFromMcpPayload(payload);
+    if (typeof markdown !== 'string') {
+        throw new Error(t('errors.mcpBadResponse'));
+    }
+    updateMcpStatus('success');
+    return markdown;
+}
+
+async function performMcpConnectionTest() {
+    updateMcpStatus('connecting');
+    const payload = await executeMcpTool(MCP_TEST_DATA_URI);
+    const markdown = extractMarkdownFromMcpPayload(payload);
+    if (typeof markdown !== 'string') {
+        throw new Error(t('errors.mcpBadResponse'));
+    }
+    updateMcpStatus('success');
+    return true;
+}
+
+function initMcpIntegration() {
+    loadMcpConfig();
+    applyMcpConfigToUi();
+
+    if (useMcpToggle) {
+        useMcpToggle.addEventListener('change', (event) => {
+            setMcpEnabled(event.target.checked);
+        });
+    }
+
+    if (mcpServerUrlInput) {
+        const handleUrlUpdate = () => {
+            setMcpBaseUrl(mcpServerUrlInput.value);
+        };
+        mcpServerUrlInput.addEventListener('blur', handleUrlUpdate);
+        mcpServerUrlInput.addEventListener('change', handleUrlUpdate);
+        mcpServerUrlInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleUrlUpdate();
+                if (isMcpEnabled()) {
+                    performMcpConnectionTest().catch(() => {
+                        /* handled via status */
+                    });
+                }
+            }
+        });
+    }
+
+    if (testMcpBtn) {
+        testMcpBtn.addEventListener('click', async () => {
+            if (!isMcpEnabled()) {
+                updateMcpStatus('disabled');
+                return;
+            }
+
+            if (mcpServerUrlInput) {
+                setMcpBaseUrl(mcpServerUrlInput.value);
+            }
+
+            const originalDisabledState = testMcpBtn.disabled;
+            testMcpBtn.disabled = true;
+
+            try {
+                await performMcpConnectionTest();
+            } catch (error) {
+                updateMcpStatus('error', 'remote.statusError', { message: safeErrorMessage(error) });
+            } finally {
+                testMcpBtn.disabled = originalDisabledState || !isMcpEnabled();
+            }
+        });
+    }
+}
+
 async function convertFileToMarkdown(file, uint8Array) {
     const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+    const isTextExtension = TEXT_EXTENSIONS.includes(ext);
 
-    if (TEXT_EXTENSIONS.includes(ext)) {
+    if (isMcpEnabled()) {
+        try {
+            return await convertFileWithMcp(file, uint8Array, ext);
+        } catch (error) {
+            console.error(`MCP conversion failed for ${file.name}`, error);
+            const message = safeErrorMessage(error);
+            updateMcpStatus('error', 'remote.statusError', { message });
+
+            if (!isTextExtension) {
+                throw new Error(t('errors.mcpConversionFailed', { message }));
+            }
+        }
+    }
+
+    if (isTextExtension) {
         const text = new TextDecoder().decode(uint8Array);
         return convertTextFile(text, ext);
     }
@@ -613,6 +1092,7 @@ langButtons.forEach((button) => {
 
 window.addEventListener('load', () => {
     initLanguage();
+    initMcpIntegration();
     initPyodide();
 });
 
